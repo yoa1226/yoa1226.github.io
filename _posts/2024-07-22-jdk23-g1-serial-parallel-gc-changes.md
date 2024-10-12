@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "JDK 23 G1/Parallel/Serial GC changes"
+title:  "JDK 23 G1/Parallel/Serial GC changes 此篇文章仅作为模版学习，稍后会删除"
 date:   2024-07-22 11:00:00 +0200
 tags: [GC, G1, Parallel, Serial, JDK 23, Performance]
 ---
