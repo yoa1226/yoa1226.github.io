@@ -9,11 +9,12 @@ A backend engineer focused on Java, with an interest in G1 garbage collection (G
 
 ## About the content
 
-对于 JDK 源码，如果没有说明全部来自 [openJDK](https://github.com/openjdk/jdk)
+For the JDK source code, unless otherwise specified, it is entirely from [openJDK](https://github.com/openjdk/jdk)
 
 ```shell
 git clone git@github.com:openjdk/jdk.git
 
-# 41ee582df 是2024年10月24日最新提交，learn-jdk 从这个 commit 新创建分支
+# Commit 41ee582df is the latest submission as of October 24, 2024. 
+# The branch for learn-jdk was newly created from this commit.
 git checkout 41ee582df -b learn-jdk
 ```
