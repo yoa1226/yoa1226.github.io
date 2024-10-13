@@ -5,8 +5,6 @@ date:   2024-08-01 11:00:00 +0200
 tags: [GC, G1, JEP]
 ---
 
-# 前言
-
 JDK 22 在 2024 年 3 月发布，其中 [JEP 423: Region Pinning for G1](https://openjdk.org/jeps/423) 对 G1 进行了增强，大大增加了 G1 的可用性。本文抽丝剥茧带领读者了解此 JEP 的来龙去脉。
 
 > G1 全称叫 Garbage-First Garbage Collector，后面文章都简称 G1。
