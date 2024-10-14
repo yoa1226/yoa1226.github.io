@@ -49,7 +49,7 @@ tags: [GC, G1]
 
 理想的垃圾回收算法是更高的 throughput，更低的 lantency， 更低的 footprint。
 
-<image src="/assets/gc-important-component/gc-alg-tri.png" width="50%">
+<image src="/assets/gc-important-component/gc-alg-tri.png" width="50%"/>
 
 ### 垃圾收集器
 
@@ -81,7 +81,7 @@ G1 是一个分代、增量收集、并行、大多数时间并发、少量停�
 
 ### Java 堆内存总体结构
 
-<img src="/assets/gc-important-component/heap-divide.png" width="60%">
+<image src="/assets/gc-important-component/heap-divide.png" width="60%"/>
 
 G1 通过参数`-Xmx` 和 `-Xms` 设置最大最小堆内存。
 
