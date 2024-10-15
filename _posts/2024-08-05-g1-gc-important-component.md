@@ -5,7 +5,7 @@ date:   2024-08-05 11:00:00 +0200
 tags: [GC, G1]
 ---
 
- G1 是垃圾收集器技术发展史上的里程碑式的成果，开创了收集器面向局部收集的设计思路和基于 Region 的内存布局形式。G1 最早是在 2004 年 David Detlefs 等人的论文 Garbage-First Garbage Collection 中提出。自从 在 2009 年 3 月 JDK 6 Update 14 引入 Early Access 版本，15 年来 G1 的性能和功能得到巨大的提升和完善。
+ G1 是垃圾收集器技术发展史上的里程碑式的成果，开创了收集器面向局部收集的设计思路和基于 Region 的内存布局形式。G1 最早是在 2004 年 David Detlefs 等人的论文 Garbage-First Garbage Collection 中提出。自从 在 2009 年 3 月 JDK 6 Update 14 引入 Early Access 版本，15 年来 G1 的性能和功能得到巨大的提升和完善。本文将从源码级别介绍 region 、 card、记忆集、卡表、线程缓冲区、写屏障以及 G1 的收集阶段。
 
 > Java 历史版本: [Java/Java SE: All Releases, End of Life, Release Date](https://versionlog.com/java/)
 
@@ -535,6 +535,8 @@ Code:
 > 默认开启指针压缩，对象引用占四个字节。
 
 <image src="/assets/gc-important-component/write-post-barrier-obj-layout.png"/>
+
+#### 深入源码
 
 由于篇幅有限，这里仅展示函数调用，细节需要读者自行阅读源码。
 
