@@ -49,7 +49,7 @@ tags: [GC, G1]
 
 理想的垃圾回收算法是更高的 throughput，更低的 lantency， 更低的 footprint。
 
-<image src="/assets/gc-important-component/gc-alg-tri.png" width="50%"/>
+<image src="/assets/gc-important-component/gc-alg-tri.png" width="50%" title=""/>
 
 ### 垃圾收集器
 
@@ -81,7 +81,7 @@ G1 是一个分代、增量收集、并行、大多数时间并发、少量停�
 
 ### Java 堆内存总体结构
 
-<image src="/assets/gc-important-component/heap-divide.png" width="60%"/>
+<image src="/assets/gc-important-component/heap-divide.png" width="60%" title=""/>
 
 G1 通过参数`-Xmx` 和 `-Xms` 设置最大最小堆内存。
 
@@ -91,7 +91,7 @@ G1 是分代收集器，将堆分成年轻代和老年代，年轻代的大小�
 
 G1 开创了基于 region 的内存布局，如图所示，G1 将连续的堆内存分成多个大小相等的独立区域（Region），每个 Region 都可以根据需要扮演新生代或者老年代空间。Region 的大小通过 -XX:G1HeapRegionSize 指定，取值范围为 1MB ～ 32 MB，且应为 2 的 N 次幂。
 
-<image src="/assets/gc-important-component/region.png" width="60%"/>
+<image src="/assets/gc-important-component/region.png" width="60%" title=""/>
 
 > 注意：`-XX:NewSize` 和 `-XX:MaxNewSize`同样能设置新生大小，如果只有一个参数被设置值，那么新生代就会被固定为这个值，会影响暂停时间的控制。
 
@@ -110,7 +110,7 @@ static const size_t MAX_REGION_SIZE = 512 * 1024 * 1024; //512 Mb
 
 为了更好的管理内存，Java 将 Region 划分成多个 card，每个 card 是 512（2^9） 字节，G1 很多操作是以 card 为颗粒度管理的。
 
-<image src = "/assets/gc-important-component/card.png" width="60%"/>
+<image src = "/assets/gc-important-component/card.png" width="60%" title=""/>
 
 > G1 可以通过对象的地址，计算出对象所处的 region 和 card。
 
@@ -121,13 +121,13 @@ G1 利用记忆集（Remembered Sets）解决分代收集和部分收集的问�
 1.  老年代到新生代的指针。
 2.  老年代到老年代的指针。
 
-<image src = "/assets/gc-important-component/rset3.png" width="80%"/> 
+<image src = "/assets/gc-important-component/rset3.png" width="80%" title=""/> 
 
 如图，r1的记忆集记应该是{ (r6,[c12])}，r6的记忆集记应该是 {(r7,[c14])}。
 
 > 实际记录的是索引，是整数。
 
-<image src = "/assets/gc-important-component/rset1.png" width="70%"/> 
+<image src = "/assets/gc-important-component/rset1.png" width="70%" title=""/> 
 
 如上图，存在 R<sub>1</sub> 中 C card 指向 R<sub>0</sub> A card，那么在 R<sub>0</sub> 的记忆集就会记录下类似 {(R<sub>1</sub>，[C])}。
 
@@ -135,7 +135,7 @@ G1 利用记忆集（Remembered Sets）解决分代收集和部分收集的问�
 
 当 R<sub>0</sub> 被回收时，存活的对象被转移（G1 称为 evacuate）到 R<sub>2 </sub>，并且更新对应的记忆集。
 
-<image src = "/assets/gc-important-component/rset2.png" width="70%"/>
+<image src = "/assets/gc-important-component/rset2.png" width="70%" title=""/>
 
 记忆集在 G1 中扮演了非常重要的角色，是实现部分收集的关键技术，深入源码有助于我们深入理解其实现原理。
 
@@ -297,7 +297,7 @@ inline void G1ConcurrentRefineOopClosure::do_oop_work(T* p) {
 
 用下面的图表示老年代跨 region 引用，p 是指向某个源对象的属性，此属性又指向目标对象。
 
-<image src = "/assets/gc-important-component/rset4.png" width="70%"/>
+<image src = "/assets/gc-important-component/rset4.png" width="70%" title=""/>
 
 #### 遍历操作
 
@@ -345,8 +345,8 @@ void install_group_cardset(G1CardSet* group_cardset) {
 ```
 优化之后的变化
 
-<image src="/assets/gc-important-component/rset-opt1.png" width="70%"/>
-<image src="/assets/gc-important-component/rset-opt2.png" width="70%"/>
+<image src="/assets/gc-important-component/rset-opt1.png" width="70%" title=""/>
+<image src="/assets/gc-important-component/rset-opt2.png" width="70%" title=""/>
 
 > 针对老年 region rset 的优化正在进行。
 
@@ -387,7 +387,7 @@ class CardTable{
 
 card table 与 heap 示意图如下：
 
-<image src = "/assets/gc-important-component/heap-ct.png" widt="90%"/>
+<image src = "/assets/gc-important-component/heap-ct.png" widt="90%" title=""/>
 
 ### 线程缓冲区
 
@@ -534,7 +534,7 @@ Code:
 
 > 默认开启指针压缩，对象引用占四个字节。
 
-<image src="/assets/gc-important-component/write-post-barrier-obj-layout.png"/>
+<image src="/assets/gc-important-component/write-post-barrier-obj-layout.png" title=""/>
 
 #### 深入源码
 
