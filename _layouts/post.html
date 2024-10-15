@@ -25,7 +25,7 @@ layout: default
         {% endfor %}
       {%- endif -%}</p>
   </header>
-
+  {% include toc.html html=content h_min = 2 %}
   <div class="post-content e-content" itemprop="articleBody">
     {{ content }}
   </div>
