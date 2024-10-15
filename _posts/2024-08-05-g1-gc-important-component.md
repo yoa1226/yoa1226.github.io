@@ -387,7 +387,7 @@ class CardTable{
 
 card table 与 heap 示意图如下：
 
-<image src = "/assets/gc-important-component/heap-ct.png" widt="90%">
+<image src = "/assets/gc-important-component/heap-ct.png" widt="90%"/>
 
 ### 线程缓冲区
 
