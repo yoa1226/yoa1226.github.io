@@ -397,7 +397,7 @@ card table 与 heap 示意图如下：
 
 2. `_dirty_card_queue` : 用于维护记忆集，写后屏障（post-write）。
 
-3. `_pin_cache`: region 临界区对象计数的线程本地缓存，见前文[解读 JEP 423: Region Pinning for G1](/_posts/2024-08-01-region-pinning-for-g1.md)。
+3. `_pin_cache`: region 临界区对象计数的线程本地缓存，见前文[解读 JEP 423: Region Pinning for G1](https://yoa1226.github.io/2024/08/01/region-pinning-for-g1.html)。
 
 ```cpp
 typedef uint64_t GCThreadLocalData[43]; // 344 bytes
@@ -465,7 +465,7 @@ void G1DirtyCardQueueSet::enqueue(G1DirtyCardQueue& queue, volatile CardValue* c
 
 ```cpp
 //handle_zero_index -> handle_completed_buffer 
-enqueue_completed_buffer(new_node);
+enqueue_completed_buffer(new_node); //加入到全局队列中
 
 
 //refine_completed_buffer_concurrently() -> refine_buffer() -> 
@@ -487,10 +487,7 @@ inline void G1ConcurrentRefineOopClosure::do_oop_work(T* p) {
 }
 ```
 
-通常情况下 ` Refinement threads` 负责处理全局队列，入口函数是 `refine_completed_buffer_concurrently`，最终调用 `G1ConcurrentRefineOopClosure::do_oop_work` 更新记忆集。
-
-
-
+通常情况下 `Refinement threads` 负责处理全局队列，入口函数是 `refine_completed_buffer_concurrently`，最终调用 `G1ConcurrentRefineOopClosure::do_oop_work` 更新记忆集。
 
 ### 写屏障
 
