@@ -9,11 +9,11 @@ JDK 22 在 2024 年 3 月发布，其中 [JEP 423: Region Pinning for G1](https:
 
 > G1 全称叫 Garbage-First Garbage Collector，后面文章都简称 G1。
 
-# JNI
+## JNI
 
 JNI（Java Native Interface）是一种编程框架，允许Java代码调用本地（本机）应用程序或库，通常是用其他编程语言编写的代码，通常是C或C++。JNI提供了一种与Java虚拟机（JVM）交互的机制，使Java程序能够利用现有的C/C++代码库，或者访问与Java标准库中未提供的系统级资源。
 
-## 临界区
+### 临界区
 
 JNI 定义了一组用于获取和释放指向 Java 对象指针的函数，这种函数总是成对使用。例如 [GetPrimitiveArrayCritical](https://github.com/openjdk/jdk/blob/master/src/hotspot/share/prims/jni.cpp#L2812) 和 [ReleasePrimitiveArrayCritical](https://github.com/openjdk/jdk/blob/master/src/hotspot/share/prims/jni.cpp#L2830)。
 
@@ -46,7 +46,7 @@ void GCLocker::lock_critical(JavaThread* thread) {
 }
 ```
 
-## 实验
+### 实验
 
 为了简单地认识 JNI，下面做一个实验，[查看源码](/code/critical-gc/)。
 
@@ -137,11 +137,11 @@ javac -h . CriticalGC.java
 cc -I. -I/Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home/include -I/Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home/include/darwin -shared -o libCriticalGC.dylib CriticalGC.c
 ```
 
-# GCLocker
+## GCLocker
 
 JNI 定义
 
-## ParallelGC
+### ParallelGC
 
 使用 ParallelGC 运行代码：
 
@@ -165,7 +165,7 @@ Releasing
 
 从日志中可以看到 GC 没有发生在 `Acquired` 和 `Releasing` 之间，而是发生在 `Releasing` 之后，日志表明此次 GC 是 `GCLocker` 引起的。当 JNI 持有 Java 对象时，JVM 使用 `GCLocker` 阻止 GC 发生，此时如果 JNI 释放 `GCLocker` 就会立即触发 GC。日志 中 Pause Young (GCLocker Initiated GC) 代表的是一次由 GCLocker 状态退出后立即触发的 Young Generation GC。
 
-## G1
+### G1
 
 使用 G1 运行代码:
 
@@ -185,7 +185,7 @@ Acquired
 97204: Unable to open socket file /var/folders/7v/6_cxsxmn7gl_kbm9t1vqkfh80000gn/T/.java_pid97204: target process 97204 doesn't respond within 10500ms or HotSpot VM not loaded
 ```
 
-### 编译 JDK 21
+#### 编译 JDK 21
 
 为了搞清楚 JVM 内部发生的事情，我们编译一个开启 `debug` 模式的 JDK 21。
 
@@ -217,7 +217,7 @@ drwxr-xr-x  71 yoa  staff   2.2K Oct 13 01:45 modules
 -rw-r--r--   1 yoa  staff   178B Oct 13 01:43 release
 ```
 
-### 再次运行
+#### 再次运行
 
 修改 makefile， 并运行
 
@@ -268,7 +268,7 @@ void GCLocker::stall_until_clear() {
 }
 ```
 
-### 源码分析
+#### 源码分析
 
 结合测试代码、JDK 源码和日志，我们会有一些线索。
 
@@ -285,7 +285,7 @@ GCLocker::stall_until_clear();
 
 结论是：`main` 自身处于临界区线程，当内存不足时，它要去等待自己退出临界区，然后 G1 才能开始GC，然后就造成了死锁。
 
-# G1 region pinning
+## G1 region pinning
 
 使用 JDK 23 看下此问题修复之后的效果。
 
@@ -322,7 +322,7 @@ Releasing
 
 从日志可以看到，G1 在 `Acquired` 和 `Releasing` 同样能执行 GC。
 
-## 深入源码
+### 深入源码
 
 我们直接查看最新的 G1 实现，主要是 `pin_object`。
 
@@ -358,7 +358,7 @@ inline void G1RegionPinCache::inc_count(uint region_idx) {
 
 G1 内存回收的最小颗粒度是 region， 通过对 region 中临界对象的计数，在 GC 时选择计数为 0 的 region 进行回收，在 G1 层面解决了 `GCLocker` 问题。
 
-## 拷贝对象
+### 拷贝对象
 
 在 JEP 423 之前使用拷贝 Java 对象的方式解决 `GCLocker` 问题.
 
@@ -374,7 +374,7 @@ int len = (*env)->GetArrayLength(env, address);
 通过将 Java 数组拷贝到线程栈上解决 `GCLocker` 问题，复制数组导致一点性能开销，但是在 JDK 22 之前这点开销是值得的。
 
 
-# 总结
+## 总结
 
 在 JEP 423 之前，G1 对于临界对象在 GC 中的处理经常会导致线程挂起、不必要的 OOM、还有可能在极端情况下导致 JVM 虚拟关闭。下面是一些事例：
 
