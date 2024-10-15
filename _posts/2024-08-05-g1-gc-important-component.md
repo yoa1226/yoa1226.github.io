@@ -342,12 +342,166 @@ void install_group_cardset(G1CardSet* group_cardset) {
   _card_set = group_cardset; // 堆中全局的 `G1CardSet` 赋值给新的 region。
 }
 ```
+优化之后的变化
+
+<image src="/assets/gc-important-component/rset-opt1.png" width="70%"/>
+<image src="/assets/gc-important-component/rset-opt2.png" width="70%"/>
 
 > 针对老年 region rset 的优化正在进行。
 
-### 写屏障
+### 全局卡表
+
+全局卡表是一个数组，用于标记 region 某个中 card 是否存在跨 region 指针，如果存在则标记为 dirty。
+
+```cpp
+jint G1CollectedHeap::initialize() {
+     G1CardTable* ct = new G1CardTable(heap_rs.region());
+     _card_table->initialize(cardtable_storage);
+ }
+
+class CardTable{
+  typedef uint8_t CardValue;
+  size_t          _byte_map_size;    // in bytes
+  CardValue*      _byte_map;         // the card marking array
+  CardValue*      _byte_map_base
+}
+```
+
+对于指针 `p` 使用下面的方法定位它所处的 card 在 cardTable 中的索引。
+
+```cpp
+  CardValue* byte_for(const void* p) const {
+    CardValue* result = &_byte_map_base[uintptr_t(p) >> _card_shift];
+    return result;
+```
+
+可能是由于 heap 的起始地址并不是从 0 开始的，使用 `_byte_map_base` 而不是直接使用 `_byte_map` 是可以减少计算。如果直接使用 `_byte_map` 则代码如下：
+
+```cpp
+  CardValue* byte_for(const void* p) const {
+    int idx  = uintptr_t(p) >> _card_shift - (uintptr_t(low_bound) >> _card_shift);
+    CardValue* result = &_byte_map[idx];
+    return result;
+```
+
+card table 与 heap 示意图如下：
+
+<image src = "/assets/gc-important-component/heap-ct.png" widt="90%">
 
 ### 线程缓冲区
+
+在 `thread` 类定义了一块线程本地数据块，长度为 344 字节，主要用于优化性能。在 G1 中数据块分成三个部分:
+
+1. `_satb_mark_queue`：在并发标记中，实现 （Snapshot-at-the beginning）算法的队列，用于写前屏障（pre-write）。
+
+2. `_dirty_card_queue` : 用于维护记忆集，写后屏障（post-write）。
+
+3. `_pin_cache`: region 临界区对象计数的线程本地缓存，见前文[解读 JEP 423: Region Pinning for G1](/_posts/2024-08-01-region-pinning-for-g1.md)。
+
+```cpp
+typedef uint64_t GCThreadLocalData[43]; // 344 bytes
+
+class Thread{
+  GCThreadLocalData _gc_data;
+}
+
+static G1ThreadLocalData* data(Thread* thread) {
+  return thread->gc_data<G1ThreadLocalData>();
+}
+
+class G1ThreadLocalData {
+  SATBMarkQueue _satb_mark_queue;
+  G1DirtyCardQueue _dirty_card_queue;
+  G1RegionPinCache _pin_cache;
+}
+```
+
+#### PtrQueue
+
+`PtrQueue` 是上述两个队列的基类，`_buf` 是元素为指针的数组，`_index` 代表上次入队列的位置，`_index ` 从最大容量开始一直减少到零。
+
+```cpp
+class PtrQueue {
+  // The (byte) index at which an object was last enqueued.  Starts at
+  // capacity (in bytes) (indicating an empty buffer) and goes towards zero
+  size_t _index;
+  void** _buf;
+}
+```
+
+#### _satb_mark_queue
+
+解读并发标记内容的时候再详细论述。
+
+#### _dirty_card_queue
+
+当发生对象赋值时，如果存在老年代的对象指向年轻代的对象，那么此时就需要更新年轻代 region 的 rset。但是更新并不会立即发生，当前只需要将老年代的指针加入到 `_dirty_card_queue`。
+
+整个过程是：
+- Java 线程产生跨 region 的对象赋值 
+- 跨 region 指针加入到线程本地 `_dirty_card_queue` 
+- 本地队列满，加入到全局队列 -> refine 线程根据队列信息更新记忆集 
+- 垃圾收集线程根据记忆集更新全局卡表
+- 垃圾收集线程根据全局卡表扫描回指向回收集（cset）的 所有 region 的 dirty card。
+
+```cpp
+void G1BarrierSet::write_ref_field_post_slow(volatile CardValue* byte) {
+  //omit
+  G1DirtyCardQueue& queue = G1ThreadLocalData::dirty_card_queue(thr);
+  G1BarrierSet::dirty_card_queue_set().enqueue(queue, byte);
+}
+
+void G1DirtyCardQueueSet::enqueue(G1DirtyCardQueue& queue, volatile CardValue* card_ptr) {
+  CardValue* value = const_cast<CardValue*>(card_ptr);
+  if (!try_enqueue(queue, value)) {
+    handle_zero_index(queue);
+    retry_enqueue(queue, value);
+  }
+}
+```
+
+上面代码将跨 region 指针加入到线程本地队列中，当本地队列满时，则将本地队列的全数据添加到全局队列中。
+
+```cpp
+//handle_zero_index -> handle_completed_buffer 
+enqueue_completed_buffer(new_node);
+
+
+//refine_completed_buffer_concurrently() -> refine_buffer() -> 
+//refine() -> refine_cleaned_cards() -> refine_card_concurrently()
+template <class T>
+inline void G1ConcurrentRefineOopClosure::do_oop_work(T* p) {
+  T o = RawAccess<MO_RELAXED>::oop_load(p);
+
+  if (CompressedOops::is_null(o)) { return; }
+
+  oop obj = CompressedOops::decode_not_null(o);
+
+  if (G1HeapRegion::is_in_same_region(p, obj)) { return; }
+
+  G1HeapRegionRemSet* to_rem_set = _g1h->heap_region_containing(obj)->rem_set();
+  if (to_rem_set->is_tracked()) {
+    to_rem_set->add_reference(p, _worker_id);
+  }
+}
+```
+
+通常情况下 ` Refinement threads` 负责处理全局队列，入口函数是 `refine_completed_buffer_concurrently`，最终调用 `G1ConcurrentRefineOopClosure::do_oop_work` 更新记忆集。
+
+
+
+
+### 写屏障
+
+写屏障（write barriers）分为写前屏障（pre-write）和写后屏障（post-write），前者用于 SATB (Snapshot-at-the beginning) 算法保证并发标记的正确性，后者用于维护记忆集。本小节仅仅讨论写后屏障。
+
+例如下面的赋值代码
+
+```java
+object.field = some_other_object;
+```
+
+
 
 ## G1 收集阶段
 
