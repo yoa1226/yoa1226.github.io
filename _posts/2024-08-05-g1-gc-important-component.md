@@ -440,7 +440,7 @@ class PtrQueue {
 
 整个过程是：
 - Java 线程产生跨 region 的对象赋值 
-- 跨 region 指针加入到线程本地 `_dirty_card_queue` 
+- 利用写屏障将跨 region 指针加入到线程本地 `_dirty_card_queue` 
 - 本地队列满，加入到全局队列 -> refine 线程根据队列信息更新记忆集 
 - 垃圾收集线程根据记忆集更新全局卡表
 - 垃圾收集线程根据全局卡表扫描回指向回收集（cset）的 所有 region 的 dirty card。
@@ -493,13 +493,146 @@ inline void G1ConcurrentRefineOopClosure::do_oop_work(T* p) {
 
 写屏障（write barriers）分为写前屏障（pre-write）和写后屏障（post-write），前者用于 SATB (Snapshot-at-the beginning) 算法保证并发标记的正确性，后者用于维护记忆集。本小节仅仅讨论写后屏障。
 
-例如下面的赋值代码
+准确来说，写后屏障作用是将跨 region 指针写入到 `_dirty_card_queue`。
+
+对于 Java 代码：
 
 ```java
-object.field = some_other_object;
+public class PutFieldWriteBarrierTest {
+    private Object myfield = new Object();
+}
 ```
 
+生成的字节码指令如下：
 
+```c
+Code:
+   0: aload_0
+   1: invokespecial #1                  // Method java/lang/Object."<init>":()V
+   4: aload_0
+   5: new           #2                  // class java/lang/Object
+   8: dup
+   9: invokespecial #1                  // Method java/lang/Object."<init>":()V
+   12: putfield      #7                  // Field myField:Ljava/lang/Object;
+   15: return
+
+```
+
+接下来我们探索一下 JVM 是如何从 `putfield` 指令到 `write_ref_field_post`。
+
+下面是解释执行字节码指令的关键代码：
+
+```cpp
+// jdk/src/hotspot/share/interpreter/zero/bytecodeInterpreter.cpp
+// obj是接收者对象，field_offset
+ obj->obj_field_put(field_offset, val); #
+```
+
+在我们的例子中，上面代码中的 `obj` 是 `PutFieldWriteBarrierTest` 的实例，`field_offset` 是属性`myField` 在对象实例中的位置。`val` 是 `new Object()` 。
+
+使用 [jol](https://github.com/openjdk/jol) 可以得到 `PutFieldWriteBarrierTest` 实例对象的内存布局。实例对象共 16 字节，`myField` 从 `offset` 为 12 的位置开始，占四个字节。
+
+> 默认开启指针压缩，对象引用占四个字节。
+
+<image src="/assets/gc-important-component/write-post-barrier-obj-layout.png"/>
+
+由于篇幅有限，这里仅展示函数调用，细节需要读者自行阅读源码。
+
+ ```cpp
+//-> obj->obj_field_put(field_offset, val);
+//-> oopDesc::obj_field_put(int offset, oop value) 
+//-> HeapAccess<>::oop_store_at(as_oop(), offset, value);
+//-> oop_store_at(oop base, ptrdiff_t offset, T value)
+//-> store_at(oop base, ptrdiff_t offset, T value)
+//
+//->  template <DecoratorSet decorators, typename T>
+//    inline static typename EnableIf<
+//    !HasDecorator<decorators, AS_RAW>::value>::type
+//    store_at(oop base, ptrdiff_t offset, T value)
+//
+//-> template <DecoratorSet decorators, typename T>
+//   struct RuntimeDispatch<decorators, T, BARRIER_STORE_AT>: AllStatic {
+//    typedef typename AccessFunction<decorators, T, BARRIER_STORE_AT>::type func_t;
+//    static func_t _store_at_func;
+//    static inline void store_at(oop base, ptrdiff_t offset, T value) {
+//     _store_at_func(base, offset, value);
+//   }
+//  }
+//
+RuntimeDispatch<decorators, T, BARRIER_STORE_AT>::_store_at_func = &store_at_init;
+ ```
+
+`_store_at_func` 函数定义如下：
+
+```cpp
+RuntimeDispatch<decorators, T, BARRIER_STORE_AT>::_store_at_func = &store_at_init;
+
+//-> void RuntimeDispatch<decorators, T, BARRIER_STORE_AT>::store_at_init(oop base, ptrdiff_t offset, T value)
+// -> BarrierResolver<decorators, func_t, BARRIER_STORE_AT>::resolve_barrier()
+//->  resolve_barrier_rt()
+//-> resolve_barrier_gc()
+```
+
+函数 `resolve_barrier_gc`  的返回值是：
+
+```cpp
+return PostRuntimeDispatch<typename BarrierSet::GetType<BarrierSet::bs_name>::type::AccessBarrier<ds>, barrier_type, ds>::oop_access_barrier; 
+
+//在 G1 中返回的是
+//PostRuntimeDispatch<G1BarrierSet::AccessBarrier<ds>,BARRIER_STORE_AT, ds>::oop_access_barrier
+```
+
+下面是 `G1BarrierSet::AccessBarrier` 的定义：
+
+```cpp
+  // Callbacks for runtime accesses.
+template <DecoratorSet decorators, typename BarrierSetT = G1BarrierSet>
+class AccessBarrier: public ModRefBarrierSet::AccessBarrier<decorators, BarrierSetT> {
+    typedef BarrierSet::AccessBarrier<decorators, BarrierSetT> Raw;
+}
+```
+
+回到函数 `oop_access_barrier`，从前文已经知道 `GCBarrierType` 是 `G1BarrierSet::AccessBarrier`。
+
+```cpp
+template <class GCBarrierType, DecoratorSet decorators>
+struct PostRuntimeDispatch<GCBarrierType, BARRIER_STORE_AT, decorators>: public AllStatic {
+  static void oop_access_barrier(oop base, ptrdiff_t offset, oop value) {
+    GCBarrierType::oop_store_in_heap_at(base, offset, value);
+  }
+}
+```
+
+ `oop_store_in_heap_at` 函数定义在 `G1BarrierSet::AccessBarrier` 的父类 `ModRefBarrierSet::AccessBarrier` 中。下面是最终的调用链：
+
+ ```cpp
+template <DecoratorSet decorators, typename BarrierSetT>
+class AccessBarrier: public BarrierSet::AccessBarrier<decorators, BarrierSetT> {
+  static void oop_store_in_heap_at(oop base, ptrdiff_t offset, oop value) {
+    oop_store_in_heap(AccessInternal::oop_field_addr<decorators>(base, offset), value);
+  }
+}
+
+template <DecoratorSet decorators, typename BarrierSetT>
+template <typename T>
+inline void ModRefBarrierSet::AccessBarrier<decorators, BarrierSetT>::
+oop_store_in_heap(T* addr, oop value) {
+  BarrierSetT *bs = barrier_set_cast<BarrierSetT>(barrier_set());
+  bs->template write_ref_field_pre<decorators>(addr); //此时 addr 指向的还是旧对象
+  Raw::oop_store(addr, value);
+  bs->template write_ref_field_post<decorators>(addr);//此时 addr 指向的还是新对象
+}
+
+template <DecoratorSet decorators, typename T>
+inline void G1BarrierSet::write_ref_field_post(T* field) {
+  volatile CardValue* byte = _card_table->byte_for(field);
+  if (*byte != G1CardTable::g1_young_card_val()) {
+    write_ref_field_post_slow(byte);
+  }
+}
+ ```
+
+同样可以看到写前屏障的原理类似，只是最后写入的是 `_satb_mark_queue`。
 
 ## G1 收集阶段
 
