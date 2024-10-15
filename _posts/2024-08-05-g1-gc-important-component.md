@@ -13,23 +13,23 @@ tags: [GC, G1]
 ## G1 发展历史
 
 ```mermaid
-    timeline title G1 发展史
-    2004年 : 论文发表
-    2009年 : JDK 6 实验版本
-    2012年 : JDK 7 Oracle 认为能够商用
-    2015年 : JDK 8 提供并发的类卸载支持, Oracle 称之为全功能的垃圾收集器
-    2017年 : JDK 9 成为默认垃圾收集器 
+timeline title G1 发展史
+2004年 : 论文发表
+2009年 : JDK 6 实验版本
+2012年 : JDK 7 Oracle 认为能够商用
+2015年 : JDK 8 提供并发的类卸载支持, Oracle 称之为全功能的垃圾收集器
+2017年 : JDK 9 成为默认垃圾收集器 
 ```
 
 ```mermaid
-    timeline title G1 优化
-    2018 : JDK 10  Parallel Full GC for G1
-    2019 : JDK 12  Abortable Mixed Collections for G1
-    2019 : JDK 12  Promptly Return Unused Committed Memory from G1
-    2020 : JDK 14  NUMA-Aware Memory Allocation for G1
-    2021 : JDK 11-18  Optimize memory usage for G1 remembered sets
-    2024 : JDK 22  Region Pinning for G1
-    2025 : JDK 24 JEP 475: Late Barrier Expansion for G1
+timeline title G1 优化
+2018 : JDK 10  Parallel Full GC for G1
+2019 : JDK 12  Abortable Mixed Collections for G1
+2019 : JDK 12  Promptly Return Unused Committed Memory from G1
+2020 : JDK 14  NUMA-Aware Memory Allocation for G1
+2021 : JDK 11-18  Optimize memory usage for G1 remembered sets
+2024 : JDK 22  Region Pinning for G1
+2025 : JDK 24 JEP 475: Late Barrier Expansion for G1
 ```
 
 ### 垃圾收集算法衡量指标
