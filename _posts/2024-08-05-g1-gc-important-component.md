@@ -392,7 +392,7 @@ card table 与 heap 示意图如下：
 
 ### 线程缓冲区
 
-在 `thread` 类定义了一块线程本地数据块，长度为 344 字节，主要用于优化性能。在 G1 中数据块分成三个部分:
+在 `thread` 类定义了一块线程本地缓冲区，长度为 344 字节，主要用于优化性能。在 G1 中数据块分成三个部分:
 
 1. `_satb_mark_queue`：在并发标记中，实现 （Snapshot-at-the beginning）算法的队列，用于写前屏障（pre-write）。
 
@@ -526,7 +526,7 @@ Code:
 ```cpp
 // jdk/src/hotspot/share/interpreter/zero/bytecodeInterpreter.cpp
 // obj是接收者对象，field_offset
- obj->obj_field_put(field_offset, val); #
+ obj->obj_field_put(field_offset, val);
 ```
 
 在我们的例子中，上面代码中的 `obj` 是 `PutFieldWriteBarrierTest` 的实例，`field_offset` 是属性`myField` 在对象实例中的位置。`val` 是 `new Object()` 。

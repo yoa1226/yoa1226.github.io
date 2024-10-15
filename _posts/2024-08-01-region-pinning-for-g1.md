@@ -5,7 +5,7 @@ date:   2024-08-01 11:00:00 +0200
 tags: [GC, G1, JEP]
 ---
 
-JDK 22 在 2024 年 3 月发布，其中 [JEP 423: Region Pinning for G1](https://openjdk.org/jeps/423) 对 G1 进行了增强，大大增加了 G1 的可用性。本文抽丝剥茧带领读者了解此 JEP 的来龙去脉。
+JDK 22 在 2024 年 3 月发布，其中 [JEP 423: Region Pinning for G1](https://openjdk.org/jeps/423) 对 G1 进行了优化，增强了 G1 的可用性。本文将从源码的角度带领读者了解 JEP 423 的来龙去脉。
 
 > G1 全称叫 Garbage-First Garbage Collector，后面文章都简称 G1。
 
@@ -208,13 +208,13 @@ jdk21 git:(master) make
 ➜  jdk21 git:(master) ll build/macosx-aarch64-server-slowdebug/jdk
 total 16
 # 省略部分.....
-drwxr-xr-x  31 yoa  staff   992B Oct 13 01:46 bin
-drwxr-xr-x   8 yoa  staff   256B Oct 13 01:43 conf
-drwxr-xr-x   8 yoa  staff   256B Oct 13 01:43 include
-drwxr-xr-x  54 yoa  staff   1.7K Oct 13 01:47 lib
-drwxr-xr-x   3 yoa  staff    96B Oct 13 01:46 man
-drwxr-xr-x  71 yoa  staff   2.2K Oct 13 01:45 modules
--rw-r--r--   1 yoa  staff   178B Oct 13 01:43 release
+drwxr-xr-x  31 yyy  staff   992B Oct 13 01:46 bin
+drwxr-xr-x   8 yyy  staff   256B Oct 13 01:43 conf
+drwxr-xr-x   8 yyy  staff   256B Oct 13 01:43 include
+drwxr-xr-x  54 yyy  staff   1.7K Oct 13 01:47 lib
+drwxr-xr-x   3 yyy  staff    96B Oct 13 01:46 man
+drwxr-xr-x  71 yyy  staff   2.2K Oct 13 01:45 modules
+-rw-r--r--   1 yyy  staff   178B Oct 13 01:43 release
 ```
 
 #### 再次运行

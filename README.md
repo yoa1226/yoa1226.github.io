@@ -1,4 +1,4 @@
-# yoa1226.github.io
+# github.io
 
 Blog contents for weird.github.io.
 
