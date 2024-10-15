@@ -267,7 +267,8 @@ bool G1CardSet::coarsen_container(ContainerPtr volatile* container_addr, Contain
 
 ContainerInlinePtr 使用 64 位（64位机器）指针存储，最低两位 bit 为 00 表示容器类型。剩下最低三位表示存储 card 的数量，余下的高位存储 card。ContainerInlinePtr 只能存储 3 至 5 个 card 信息。
 
-```cpp// MSB                                                 LSB
+```cpp
+// MSB                                                 LSB
 // +------+         +---------------+--------------+-----+
 // |unused|   ...   |  card_index1  | card_index0  |SSS00|
 // +------+         +---------------+--------------+-----+
