@@ -95,7 +95,7 @@ G1 开创了基于 region 的内存布局，如图所示，G1 将连续的堆内
 
 > 注意：`-XX:NewSize` 和 `-XX:MaxNewSize`同样能设置新生大小，如果只有一个参数被设置值，那么新生代就会被固定为这个值，会影响暂停时间的控制。
 
-JDK 18 突破了 region 最大内存 32MB 的限制，最大可以达到 512 M。下面是源码中对 region 大小的定义：
+JDK 18 突破了 region 最大内存 32MB 的限制，最大可以达到 512 M，能显著改善大对象应用的 GC 情况。下面是源码中对 region 大小的定义：
 
 ```cpp
 //src/hotspot/share/gc/g1/heapRegionBounds.hpp
@@ -635,16 +635,86 @@ inline void G1BarrierSet::write_ref_field_post(T* field) {
 }
  ```
 
+
+
 同样可以看到写前屏障的原理类似，只是最后写入的是 `_satb_mark_queue`。
+
+## 回收集
+
+在回收阶段能被释放重新使用的 region 的集合叫做回收集，简称 cset，它包含年轻代 region，可能包含老年代 region。
+
+cset 是增量构建的：
+
+- gc 收集的结尾会将 survivor regions 加入到 cset。
+- 当 eden region 内存使用完毕时会被加入到 cset。
+- old region 在并发阶段加入到 cset 候选集中，然后在回收阶段根据调价加入到 cset 中。
+
+更多详细信息参考 `src/hotspot/share/gc/g1/g1CollectionSet.hpp` 注释。
 
 ## G1 收集阶段
 
+G1 可以简单地分为收集和并发标记，本节大概介绍每个阶段的任务，实现细节会在后续的文章介绍。
+
+收集活动（evacuate）从 gc root 出发，扫描回收集（后文称 cset）内的所有对象，将存活的对象复制到新的区域，然后将 cset 的 region 重置为可用。
+
+并发标记（ Concurrent Mark Cycle）从 gc root 出发，标记出整个堆的存活对象，为收集活动提供统计数据。
+
 ### GC 日志
+
+在 gc 日志中，收集活动的格式为 `Pause Young (G1GCPauseType) (GCCause)`， G1GCPauseType 是收集类型， GCCause 是当前收集的原因。
+
+> 另外 Full GC 的日志为 `Pause Full (G1 Compaction Pause)`。
+
+输出收集日志源码：
+
+```cpp
+//src/hotspot/share/gc/g1/g1YoungCollector.cpp#update_young_gc_name
+snprintf(_young_gc_name_data, MaxYoungGCNameLength, "Pause Young (%s) (%s)%s",
+         G1GCPauseTypeHelper::to_string(_pause_type), GCCause::to_string(_pause_cause),
+         evacuation_failed_string)
+```
+
+#### G1GCPauseType
+
+```cpp
+enum class G1GCPauseType : uint {
+  YoungGC, //Normal
+  LastYoungGC,//Prepare Mixed
+  ConcurrentStartMarkGC,//Concurrent Start
+  ConcurrentStartUndoGC, //Concurrent Start
+  Cleanup, //Cleanup
+  Remark, //Remark
+  MixedGC, //Mxed
+  FullGC //Full
+};
+```
+上面是G1GCPauseType 的全部定义，本节只关注下面的类型：
+
+- Pause Young (Normal) ：回收年轻代。
+- Pause Young (Concurrent Start)：回收年轻代并且为 `Concurrent Mark Cycle` 做准备。
+- Pause Young (Prepare Mixed)：回收年轻代并且为回收来年代做准备。
+- Pause Young (Mixed)：回收年轻代并且回收部分老年代。
+
+并发标记 (`Concurrent Mark Cycle`) 开始的日志为 `Concurrent Mark Cycle`。
 
 ### Young GC
 
+`Young GC` 听起来好像只是回收年轻代，事实上是回收 cset， 可能会包括老年代。包括三个阶段：
+
+- 准备阶段（Pre Evacuate Collection Set），主要是刷新线程缓冲区和选定 cset。
+- 回收阶段 （Evacuate Collection Set），gc 根遍历（gc root scan）、 cset 遍历（cset scan），继续遍历存活的对象并复制对象到新的 region 中。
+- 清理收尾阶段（post_evacuate_collection_set）：处理非强引用、清理卡表、采样 cset、释放 cset 、计算 TALB等。
+
 ### 并发标记
+
+并发标记（`Concurrent Mark Cycle`）是对整个堆的对象存活情况进行标记，分成四个阶段，
+初始标记、并发标记、最终标记、筛选回收。这些是 《深入理解 JVM 虚拟机》 都有内容不在赘述，源码讲解会在后续的文章论述。
 
 ### Full GC
 
+Full GC 是暂停所有线程、全堆本地压缩的 GC。分为标记活对象、压缩准备、压缩堆、重置元数据等阶段，源码讲解会在后续的文章论述。
+
+## 总结
+
+本文介绍了 G1 中许多重要的概念，并从源码级别理解其实现，他们作为后续深入 G1 源码必备知识。
 
