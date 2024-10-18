@@ -43,7 +43,7 @@ GC 的具体工作是调用 `G1YoungCollector` 管理的，`collect` 方法负�
 
 首先用过 GC 日志查看 Young GC 的基本步骤：
 
-<image src="/assets/ygc-pre/ygc-pre-log.png" width = "80%">
+<image src="/assets/ygc-pre/ygc-pre-log.png" width = "80%"/>
 
 - Pre Evacuate Collection Set: 准备工作，本文重点。
 - Merge Heap Roots（Root Scan）：gc root 扫描，这里特指 Java 堆，然而 gc 有很多，所以笔者倾向于把这个阶段重新命名为 Root Scan。
