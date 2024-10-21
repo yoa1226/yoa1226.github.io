@@ -34,6 +34,8 @@ virtual void work(uint worker_id) {
 }
 ```
 
+<image src="/assets/gc-young-gc-root-scan/g1-gc-ygc-rset-scan.png" width = "80%"/>
+
 这里主要逻辑都在 `G1MergeCardSetClosure` 里面，它主要做了三件事情。
 
 1. 遍历记忆集，将记忆集中的 region 的 card 对应的 card table 位置标记为 dirty，即将记忆集存储的转换成 card table 存储。
@@ -41,7 +43,7 @@ virtual void work(uint worker_id) {
    
 后续 heap root scan 阶段需要依赖上面两类的信息。
 
-3. 将会收集中的 reigon 统一添加到 ` _scan_state._all_dirty_regions`，由于这部分 region 被回收了，那么其对应的 card table 位置需要被清理。
+3. 将回收集中的 reigon 统一添加到 ` _scan_state._all_dirty_regions`，由于这部分 region 被回收了，那么其对应的 card table 位置需要被清理。
 
 ### G1MergeCardSetClosure
 
@@ -159,6 +161,7 @@ class G1MergeCardSetClosure : public G1HeapRegionClosure {
 
 对每个 dirty card 进行处理，`_merge_card_set_cache` 用于优化性能，`mark_clean_as_dirty` 将存在跨 region 引用的 card 标记为 dirty card。
 
+
 ```cpp
 //->ptr.iterate(cl, _config->inline_ptr_bits_per_card());
 //->found(value & card_mask);
@@ -175,10 +178,16 @@ class G1MergeCardSetClosure : public G1HeapRegionClosure {
   }
   
     void mark_card(G1CardTable::CardValue* value) {
-      if (_ct->mark_clean_as_dirty(value)) { }
+      if (_ct->mark_clean_as_dirty(value)) {
+        _scan_state->set_chunk_dirty(_ct->index_for_cardvalue(value));
+       }
     }
 }
 ```
+
+`scan_state->set_chunk_dirty`对 card index 进行压缩，64 个 card组成一个 chunk。相当于对 dirty card 分层，添加了一层索引，后续可以看到对
+
+<image src="/assets/gc-young-gc-root-scan/g1-gc-young-gc-root-scan-chunk.png" width="80%"/>
 
 ## scan root
 
@@ -632,7 +641,9 @@ class G1CardTableChunkClaimer {
 }
 ```
 
-`_region_scan_chunks` 在遍历记忆集的时候初始化， 用于加快查找。
+<image src="/assets/gc-young-gc-root-scan/g1-gc-young-gc-root-scan-chunk.png" width="80%"/>
+
+`_region_scan_chunks` 在遍历记忆集的时候初始化后， 用于加快查找。
 
 ```cpp
 void set_chunk_range_dirty(size_t const region_card_idx, size_t const card_length) {
