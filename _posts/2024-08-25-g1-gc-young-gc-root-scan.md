@@ -323,7 +323,7 @@ RawAccess<IS_NOT_NULL>::oop_store(p, forwardee);
 
 如图，遍历 gc root2 时已经移动了对象，在遍历 gc root1 时只需要改变指针的值。
 
-<image src="/assets/gc-young-gc-root-scan/g1-gc-ygc-gc-root-scan-copy-obj.png" width="60%">
+<image src="/assets/gc-young-gc-root-scan/g1-gc-ygc-gc-root-scan-copy-obj.png" width="60%"/>
 
 在对象 markword 中，最低两位为标志为，值为 `11` 时为 GC 标志。
 
