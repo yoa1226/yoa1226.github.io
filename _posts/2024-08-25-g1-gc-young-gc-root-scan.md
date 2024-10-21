@@ -34,7 +34,7 @@ virtual void work(uint worker_id) {
 }
 ```
 
-<image src="/assets/gc-young-gc-root-scan/g1-gc-ygc-rset-scan.png" width = "80%"/>
+<image src="/assets/gc-young-gc-root-scan/g1-gc-ygc-rset-scan.png" width = "100%"/>
 
 这里主要逻辑都在 `G1MergeCardSetClosure` 里面，它主要做了三件事情。
 
@@ -187,7 +187,7 @@ class G1MergeCardSetClosure : public G1HeapRegionClosure {
 
 `scan_state->set_chunk_dirty`对 card index 进行压缩，64 个 card组成一个 chunk。相当于对 dirty card 分层，添加了一层索引，后续可以看到对
 
-<image src="/assets/gc-young-gc-root-scan/g1-gc-young-gc-root-scan-chunk.png" width="80%"/>
+<image src="/assets/gc-young-gc-root-scan/g1-gc-young-gc-root-scan-chunk.png" width="90%"/>
 
 ## scan root
 
@@ -641,7 +641,7 @@ class G1CardTableChunkClaimer {
 }
 ```
 
-<image src="/assets/gc-young-gc-root-scan/g1-gc-young-gc-root-scan-chunk.png" width="80%"/>
+<image src="/assets/gc-young-gc-root-scan/g1-gc-young-gc-root-scan-chunk.png" width="90%"/>
 
 `_region_scan_chunks` 在遍历记忆集的时候初始化后， 用于加快查找。
 
