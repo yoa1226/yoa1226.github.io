@@ -18,3 +18,7 @@ git clone git@github.com:openjdk/jdk.git
 # The branch for learn-jdk was newly created from this commit.
 git checkout 41ee582df -b learn-jdk
 ```
+
+## 其他
+
+掘金上还有部分文章 https://juejin.cn/user/2154698521978264/posts
