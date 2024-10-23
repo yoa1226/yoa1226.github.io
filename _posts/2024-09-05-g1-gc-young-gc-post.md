@@ -147,11 +147,29 @@ void PreservedMarks::restore() {
 
 ## ProcessEvacuationFailedRegionsTask
 
-在 Young GC 阶段清空 markbit。
+对于在 cset 中， 还存在对象的region，看情况在 Young GC 阶段清空 mark bit。
+
+```cpp
+bool clear_mark_data = !g1h->collector_state()->in_concurrent_start_gc() ||
+                        g1h->policy()->should_retain_evac_failed_region(r);
+
+if (clear_mark_data) {
+  g1h->clear_bitmap_for_region(r);
+} else {
+  // This evacuation failed region is going to be marked through. Update mark data.
+  cm->update_top_at_mark_start(r);
+  cm->set_live_bytes(r->hrm_index(), r->live_bytes());
+  assert(cm->mark_bitmap()->get_next_marked_addr(r->bottom(), cm->top_at_mark_start(r)) != cm->top_at_mark_start(r),
+          "Marks must be on bitmap for region %u", r->hrm_index());
+}
+```
 
 ## RedirtyLoggedCardsTask
 
-处理 dirty card 任务对象，除了在 cset 中，并且没有对象存在的 reigon 都会被处理
+处理 dirty card 任务队列，处理两类 region：
+
+1. 不在 cset 中。
+2. 在 cset 中，但是还有对象未移动。
 
 ```cpp
 void do_card_ptr(CardValue* card_ptr) override {
