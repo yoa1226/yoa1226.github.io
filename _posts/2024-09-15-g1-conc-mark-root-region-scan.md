@@ -436,7 +436,7 @@ inline bool G1CMBitMap::iterate(G1CMBitMapClosure* cl, MemRegion mr) {
 ```
 下面的图中可以看到，Young GC 和并发标记交替进行。
 
-<image src="/assets/conc-root-region-scan/conc-root-region-sacn-ygc.png" width="80%">
+<image src="/assets/conc-root-region-scan/conc-root-region-sacn-ygc.png" width="80%"/>
 
 `G1RootRegionScanClosure::do_oop_work` 方法标记对象，此对象为上述对象引用类型的属性。
 
