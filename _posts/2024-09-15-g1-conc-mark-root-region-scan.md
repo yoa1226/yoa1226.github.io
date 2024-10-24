@@ -381,9 +381,124 @@ void G1CMRootMemRegions::add(HeapWord* start, HeapWord* end) {
 
 ## root region scan
 
+root region scan 的最终遍历是在 `G1ConcurrentMark::scan_root_region(...)` 完成的。
 
+`region->start()` 是 TAMS 的位置，`region->end()` 是 top 所在位置。
 
+`root_regions->claim_next()` 负责对线程进行同步。
+```cpp
+void G1ConcurrentMark::scan_root_regions() {
+    G1CMRootRegionScanTask task(this);
+    _concurrent_workers->run_task(&task, num_workers);
+}
 
+class G1CMRootRegionScanTask : public WorkerTask {
+  void work(uint worker_id) {
+    G1CMRootMemRegions* root_regions = _cm->root_regions();
+    const MemRegion* region = root_regions->claim_next();
+    while (region != nullptr) {
+      _cm->scan_root_region(region, worker_id);
+      region = root_regions->claim_next();
+    } }
+}
+
+void G1ConcurrentMark::scan_root_region(const MemRegion* region, uint worker_id) {
+  G1RootRegionScanClosure cl(_g1h, this, worker_id);
+  HeapWord* curr = region->start();
+  const HeapWord* end = region->end();
+  while (curr < end) {
+    Prefetch::read(curr, interval);
+    oop obj = cast_to_oop(curr);
+    size_t size = obj->oop_iterate_size(&cl);
+    curr += size;
+  }
+}
+```
+
+注意上面的代码并没有对 `obj->oop_iterate_size(&cl)` 中 `obj` 对象本身进行标记，这是由于 root region 作为 gc root object 一定是存活的对象，此类对象不需要被标记。
+
+`G1RootRegionScanClosure::do_oop_work` 方法标记对象，此对象为上述对象引用类型的属性。
+
+```cpp
+inline void G1RootRegionScanClosure::do_oop_work(T* p) {
+  T heap_oop = RawAccess<MO_RELAXED>::oop_load(p);
+  if (CompressedOops::is_null(heap_oop)) {
+    return;
+  }
+  oop obj = CompressedOops::decode_not_null(heap_oop);
+  _cm->mark_in_bitmap(_worker_id, obj);
+}
+```
+
+### mark_bitmap
+
+在并发标记中使用使用 bitmap 标记存活的对象，使用一个 bit 标记 64 bit 也就是 8 bytes。在 32 位操作系统中，8 bytes 恰好是最小对象所占字节（markword + class pointer）。
+
+<image src= "/assets/conc-root-region-scan/conc-root-region-scan-bitmap-mark.png" width = "80%"/>
+
+### set bit
+
+下面看看 G1 是如果将对象地址映射到 mark_bitmap 上去的，又是如何标记对应 bit 的。
+
+`pointer_delta(addr, _covered.start()) >> _shifter` 计算的是 `addr` 在 mark_bitmap 中的相对位置。
+
+比如图中紫色对象对应的相对位置的索引是 4。
+
+```cpp
+inline bool MarkBitMap::par_mark(HeapWord* addr) {
+  check_mark(addr);
+  return _bm.par_set_bit(addr_to_offset(addr));
+}
+
+size_t addr_to_offset(const HeapWord* addr) const {
+    return pointer_delta(addr, _covered.start()) >> _shifter;
+}
+
+inline bool BitMap::par_set_bit(idx_t bit, atomic_memory_order memory_order) {
+  verify_index(bit);
+  volatile bm_word_t* const addr = word_addr(bit);
+  const bm_word_t mask = bit_mask(bit);
+  bm_word_t old_val = load_word_ordered(addr, memory_order);
+}
+```
+
+`word_addr` 获取 bit 位置在 mark_bitmap 上的所归属的地址，然后使用 `load_word_ordered` 将地址的所在的读出来，并且一次性读 64 bit ，即 8 个字节。 
+
+`bit_in_word` 将地址在 mark_bitmap 上偏移映射到 64 bit 上，例如 bit = 76，那么 bit 在第二个 64 bit 上的偏移为 12（76 / 64）（最小为0）。
+
+`1 << bit_in_word(bit)` 等于 `1000000000000`，标记第 13 个bit 为 1，表示这个位置的对象状态为存活。
+
+```cpp
+bm_word_t* word_addr(idx_t bit) {
+  return map() + to_words_align_down(bit);
+}
+
+static idx_t bit_in_word(idx_t bit) { return bit & (BitsPerWord - 1); }
+
+static bm_word_t bit_mask(idx_t bit) { return (bm_word_t)1 << bit_in_word(bit); }
+```
+
+`new_val = old_val | mask` 与旧值相或得到新值，`Atomic::cmpxchg` 设置新值，此地址所在的对象标记完成。
+
+mark_bitmap 占整个堆空间的 1/64（1.56%）。
+
+```cpp
+do {
+  const bm_word_t new_val = old_val | mask;
+  if (new_val == old_val) {
+    return false;     // Someone else beat us to it.
+  }
+  const bm_word_t cur_val = Atomic::cmpxchg(addr, old_val, new_val, memory_order);
+  if (cur_val == old_val) {
+    return true;      // Success.
+  }
+  old_val = cur_val;  // The value changed, try again.
+} while (true);
+```
+
+## 总结
+
+本文介绍了并发标记触发的条件、TAMS的概念、root region 的组成、mark_bitmap 的结构和标记原理。
 
 
 
