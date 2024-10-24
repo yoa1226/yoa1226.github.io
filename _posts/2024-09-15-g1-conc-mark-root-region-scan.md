@@ -415,7 +415,28 @@ void G1ConcurrentMark::scan_root_region(const MemRegion* region, uint worker_id)
 }
 ```
 
-注意上面的代码并没有对 `obj->oop_iterate_size(&cl)` 中 `obj` 对象本身进行标记，这是由于 root region 作为 gc root object 一定是存活的对象，此类对象不需要被标记。
+注意上面的代码并没有对 `obj->oop_iterate_size(&cl)` 中 `obj` 对象本身进行标记，如果对 obj 进行标记会带来一定复杂性。
+
+1. obj 可能是 survivor 区对象，也可能是 cset 候选区对象，由于在 root region scan 结束之后，可能进行 young gc，那么这些对象可能会被回收。那么在后续并发标记时会造成对象缺失。这也是 young GC 为什么要等待 root region scan 完成的原因。
+
+2. survivor 区回收是在 young GC，不需要被标记就能被回收，cset 候选区已经被标记过了，无需重复标记。
+
+```cpp
+inline bool G1CMBitMap::iterate(G1CMBitMapClosure* cl, MemRegion mr) {
+  BitMap::idx_t const end_offset = addr_to_offset(mr.end());
+  BitMap::idx_t offset = _bm.find_first_set_bit(addr_to_offset(mr.start()), end_offset);
+
+  while (offset < end_offset) {
+    HeapWord* const addr = offset_to_addr(offset);
+    size_t const obj_size = cast_to_oop(addr)->size(); // 此时会造成对象缺失
+    offset = _bm.find_first_set_bit(offset + (obj_size >> _shifter), end_offset);
+  }
+  return true;
+}
+```
+下面的图中可以看到，Young GC 和并发标记交替进行。
+
+<image src="/assets/conc-root-region-scan/conc-root-region-sacn-ygc.png" width="80%">
 
 `G1RootRegionScanClosure::do_oop_work` 方法标记对象，此对象为上述对象引用类型的属性。
 
