@@ -332,8 +332,8 @@ class G1HeapRegion : public CHeapObj<mtGC> {
 `TAMS` 全称 `top at mark start`， 记录了 top 在并发标记前的位置。 TAMS 被记录并发满足三个条件：
 
 1. 是 old region 或者 humongous region。
-2. region 不在 cset中。
-3. 2. region 不在 cset 候选中。
+2. 并且 region 不在 cset中。
+3. 并且 region 不在 cset 候选中。
 
 对于在这里没有显示设置 TAMS 位置的 reigon，其 TAMS 值等于其 bottom。
 
