@@ -47,7 +47,7 @@ class G1ConcurrentMark {
 
 ## 三色标记算法
 
-在标记阶段 G1 采用三色标记算法，从 GC root 开始遍历对象，如图开始时只有与 gc root 直接关联的对象是黑色的，随着并发标记的进行，所有与 GC root 直接关联或者间接关联的对象都会变成黑色。
+在标记阶段 G1 采用三色标记算法([Tri-color marking](https://en.wikipedia.org/wiki/Tracing_garbage_collection#Tri-color_marking))，从 GC root 开始遍历对象，如图开始时只有与 gc root 直接关联的对象是黑色的，随着并发标记的进行，所有与 GC root 直接关联或者间接关联的对象都会变成黑色。
 
 <image src="/assets/conc-mark/conc-mark-tri-color.png" width="80%"/>
 
