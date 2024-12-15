@@ -1,3 +1,6 @@
 **/.DS_Store
 .DS_Store
 _reviews/
+.idea/
+code/code.iml
+assets/assets.iml

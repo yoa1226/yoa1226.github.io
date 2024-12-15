@@ -114,7 +114,7 @@ boolean enableAdaptivePartitioning = partitioner == null &&
                 
 RecordAccumulator.PartitionerConfig partitionerConfig = 
 new RecordAccumulator.PartitionerConfig( enableAdaptivePartitioning,
-                config.getLong(ProducerConfig.PARTITIONER_AVAILABILITY_TIMEOUT_MS_CONFIG)
+                config.getLong(ProducerConfig.PARTITIONER_AVAILABILITY_TIMEOUT_MS_CONFIG))
 ```
 
 #### 序列化
