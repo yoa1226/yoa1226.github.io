@@ -6,7 +6,6 @@ tags: [potgresql buffer pool]
 ---
 
 PostgreSQL(后面简称 PG) 是世界上最先进的开源关系型数据库，以功能强大、性能优越、开源包容著称，近年来收到众多开发者和公司的喜爱。基于 PG 数据库的衍生数据库众多，在各行各业发挥着举足轻重的作用。
-
 而缓存管理对数据库的性能有着巨大的影响，本文抽丝剥茧，从源码角度剖析 PG buffer pool ，希望帮助读者一窥 PG 的实现。
 
 > PostgreSQL: The World's Most Advanced Open Source Relational Database
