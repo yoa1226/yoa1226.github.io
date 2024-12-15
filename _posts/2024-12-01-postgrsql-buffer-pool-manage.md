@@ -351,7 +351,7 @@ BufferBlocks 是一个数组，数组下标是 buffer id，数组元素是一块
 								  &foundBufs))
 ```
 
-## 分配 buffer
+## BufferAlloc
 
 `ReadBuffer_common` 是通用的读取方法。将磁盘中的数据读取到内存 page 中分为两个步骤。
 - 在 buffer pool 中找个空闲的 page。对应 `StartReadBuffer -> StartReadBuffersImpl->PinBufferForBlock->BufferAlloc`
@@ -367,11 +367,9 @@ ReadBuffer_common(elation rel, ForkNumber forkNum, BlockNumber blockNum, ...){
 
 ```
 
-### BufferAlloc
-
 BufferAlloc 是寻找空闲 page 的核心逻辑。
 
-#### BufTableLookup
+### BufTableLookup
 
 - InitBufferTag 根据传入的数据构造 buffer tag。
 - BufTableHashCode 计算 buffer tag 的 hash 值。
@@ -405,7 +403,7 @@ BufferAlloc 是寻找空闲 page 的核心逻辑。
   ```
 - LWLockAcquire 和 LWLockRelease 是获取和释放分段锁。
 
-#### StrategyGetBuffer
+### StrategyGetBuffer
 
 从 ring buffer 中获取缓冲区，ring buffer 专门为顺序扫描而使用的缓冲区，防止热点缓冲区被替换。
 
@@ -453,7 +451,7 @@ if (BUF_STATE_GET_REFCOUNT(local_buf_state) == 0) {
 }
 ```
 
-#### GetVictimBuffer
+### GetVictimBuffer
 
 使用 `StrategyGetBuffer` 获取到目标缓冲区后，需要做一些特殊处理。
 
@@ -482,7 +480,7 @@ FlushBuffer 刷新数据到磁盘，事实上这里只是将数据刷到操作�
 > However, we will need to force the changes to disk via fsync before
 > we can checkpoint WAL.
 
-#### BufferAlloc
+### BufferAlloc
 
 回到 BufferAlloc 方法，从结构 BufferDescriptors 找到目标 buffer 以后，需要将其加入到 SharedBufHash。
 
@@ -614,7 +612,7 @@ seekpos = (off_t) BLCKSZ * (blocknum % ((BlockNumber) RELSEG_SIZE));
 iovcnt = buffers_to_iovec(iov, buffers, nblocks_this_segment)
 ```
 
-#### FileReadV
+### FileReadV
 
 实际读取文件，将磁盘中的数据读取到内存中
 
