@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Java 是如何开始运行的"
-date:   2024-12-01 11:00:00 +0200
+date:   2025-01-10 11:00:00 +0200
 tags: [Java JVM]
 ---
 
